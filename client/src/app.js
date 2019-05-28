@@ -31,17 +31,18 @@ const styles = theme => ({
 });
 
 class App extends React.Component {
-  socketEndpoint = 'http://localhost:5000';
+  socketEndpoint = 'http://10.0.0.176:5000';
   socket;
 
   constructor(props) {
     super(props);
 
     this.state = {
+      connected: false,
       inProgress: false,
       numPlayers: 0,
       host: null,
-      
+
       activeContestant: null,
       buzzerLocked: true,
 
@@ -55,7 +56,85 @@ class App extends React.Component {
   }
 
   onBuzzer = () => {
-    this.socket.emit('Buzz');
+    this.socket.emit('Buzz', this.state.name);
+  }
+
+  onAskQuestion = () => {
+    this.socket.emit('AskQuestion');
+  }
+
+  onUnlock = () => {
+    this.socket.emit('UnlockBuzzer');
+  }
+
+  renderActiveContestant = () => {
+    const { classes } = this.props;
+    const { buzzerLocked, activeContestant } = this.state;
+
+    return (
+      <div>
+        <Grid item xs={12}>
+          <Button disabled={buzzerLocked || !!activeContestant} variant="contained" color="primary" className={classes.button} onClick={this.onBuzzer}>Buzz In</Button>
+        </Grid>
+        {activeContestant &&
+          (
+            <Grid item xs={12}>
+              <Typography component="h1" variant="h5">
+                {activeContestant.name} buzzed in!
+              </Typography>
+            </Grid>
+          )
+        }
+      </div>);
+  }
+
+  renderActiveHost = () => {
+    const { classes } = this.props;
+    const { buzzerLocked, activeContestant } = this.state;
+    return (
+      <div>
+        <Grid item xs={12}>
+          <Button variant="contained" color="primary" className={classes.button} onClick={this.onUnlock}>Unlock</Button>
+        </Grid>
+        {activeContestant &&
+          (
+            <div>
+              <Grid item xs={12}>
+                <Typography component="h1" variant="h5">
+                  {activeContestant.name} buzzed in!
+                </Typography>
+              </Grid>
+            </div>
+          )
+        }
+      </div>
+    );
+  }
+
+  renderActiveGame = () => {
+    const { host, id } = this.state;
+    return host === id
+      ? (this.renderActiveHost())
+      : (this.renderActiveContestant());
+  }
+
+  renderGame = () => {
+    const { classes } = this.props;
+    const { inProgress } = this.state;
+    return inProgress
+      ? (this.renderActiveGame())
+      : (
+        <div>
+          <Grid item xs={12}>
+            <Typography component="h1" variant="h5">
+              Waiting for host...
+            </Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <Button variant="contained" color="primary" className={classes.button} onClick={this.onAskQuestion}>Ask Question</Button>
+          </Grid>
+        </div >
+      );
   }
 
   componentDidMount = () => {
@@ -67,13 +146,13 @@ class App extends React.Component {
     });
 
     this.socket.on('StateChange', data => {
-      this.setState({ ... data }, () => console.log(this.state))
+      this.setState({ ...data, connected: true }, () => console.log(this.state))
     });
   }
 
   render() {
     const { classes } = this.props;
-    const { name } = this.state;
+    const { numPlayers, name, connected } = this.state;
 
     return (
       <Container component="main" maxWidth="xs">
@@ -83,7 +162,7 @@ class App extends React.Component {
             Jeopardy! {this.state.testVal}
           </Typography>
           <Typography component="h1" variant="h5">
-            Players {this.state.numPlayers}
+            Players {numPlayers}
           </Typography>
           <Grid container spacing={2}>
             <Grid item xs={12}>
@@ -98,12 +177,19 @@ class App extends React.Component {
                 autoFocus
               />
             </Grid>
-            <Grid item xs={12}>
-              <Button variant="contained" color="primary" className={classes.button} onClick={this.onBuzzer}>TEST</Button>
-            </Grid>
+            {connected
+              ? (this.renderGame())
+              : (
+                <div>
+                  <Typography component="h1" variant="h5">
+                    Connecting...
+                  </Typography>
+                </div>
+              )
+            }
           </Grid>
         </div>
-      </Container>
+      </Container >
     );
   }
 }

@@ -24,6 +24,13 @@ class GameState {
     }
 };
 
+class Player {
+    constructor(id, name){
+        this.id = id;
+        this.name = name;
+    }
+};
+
 this.gameState = new GameState();
 
 io.on('connection', (socket) => {
@@ -35,8 +42,8 @@ io.on('connection', (socket) => {
         this.gameState.numPlayers--;
 
         // if the host disconnects, clear the game
-        if (socket.id === this.gameState.currentHostSocketId){
-            gameState = new GameState();
+        if (socket.id === this.gameState.host){
+            this.gameState = new GameState();
         }
 
         if (socket.id === this.gameState.activeContestant){
@@ -46,16 +53,44 @@ io.on('connection', (socket) => {
         io.emit('StateChange', this.gameState);
         console.log('user disconnected');
     });
+
+    // contestant buzzes in
+    socket.on('UnlockBuzzer', () => {
+        if (!!this.gameState.inProgress && this.gameState.buzzerLocked){
+            this.gameState.activeContestant = null;
+            this.gameState.buzzerLocked = false;
+
+            console.log('buzzer unlocked');
+        }
+
+        io.emit('StateChange', this.gameState);
+    });
     
     // contestant buzzes in
     socket.on('Buzz', (name) => {
         if (!!this.gameState.inProgress && !this.gameState.buzzerLocked && !this.gameState.activeContestant){
             this.gameState.activeContestant = new Player(socket.id, name);
+            this.gameState.buzzerLocked = true;
 
             console.log(`contestant buzz: ${name} (${socket.id})`);
         }
 
-        socket.emit('StateChange', this.gameState);
+        io.emit('StateChange', this.gameState);
+    });
+
+    // someone becomes host
+    socket.on('AskQuestion', () => {
+        if (!this.gameState.inProgress && !this.gameState.host){
+            const numPlayers = this.gameState.numPlayers;
+            this.gameState = new GameState();
+            this.gameState.inProgress = true;
+            this.gameState.host = socket.id;
+            this.gameState.numPlayers = numPlayers;
+
+            console.log(`new host: ${socket.id}`);
+        }
+
+        io.emit('StateChange', this.gameState);
     });
 
     // notify when new user joins
